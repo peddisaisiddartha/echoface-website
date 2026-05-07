@@ -1,97 +1,58 @@
-const chatContainer = document.getElementById("chatContainer");
-const historyList = document.getElementById("historyList");
+const startBtn = document.getElementById("startBtn");
+const chatBox = document.getElementById("chatBox");
 
-const greeting = document.getElementById("greeting");
+startBtn.addEventListener("click", startListening);
 
-const hour = new Date().getHours();
+async function startListening() {
 
-if(hour < 12){
-  greeting.innerText = "Good Morning";
-}
-else if(hour < 18){
-  greeting.innerText = "Good Afternoon";
-}
-else{
-  greeting.innerText = "Good Evening";
-}
+    const SpeechRecognition =
+        window.SpeechRecognition ||
+        window.webkitSpeechRecognition;
 
-const video = document.getElementById("video");
+    const recognition = new SpeechRecognition();
 
-navigator.mediaDevices.getUserMedia({
-  video:true
-})
-.then(stream=>{
-  video.srcObject = stream;
-});
+    recognition.lang = "en-US";
 
-function addMessage(text,type){
+    recognition.start();
 
-  const div = document.createElement("div");
+    recognition.onresult = async (event) => {
 
-  div.classList.add("message");
-  div.classList.add(type);
+        const text = event.results[0][0].transcript;
 
-  div.innerText = text;
+        addMessage("USER", text);
 
-  chatContainer.appendChild(div);
+        const response = await fetch(
+            "YOUR_CLOUDFLARE_WORKER_URL",
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    text
+                })
+            }
+        );
 
-  chatContainer.scrollTop =
-    chatContainer.scrollHeight;
+        const data = await response.json();
 
-  if(type==="user"){
-    const li=document.createElement("li");
-    li.innerText=text;
-    historyList.appendChild(li);
-  }
-}
+        addMessage("AI", data.response);
 
-async function captureLip(){
+        const speech =
+            new SpeechSynthesisUtterance(
+                data.response
+            );
 
-  // Simulated lip-reading
-  const detectedText =
-    "hello how are you";
-
-  addMessage(detectedText,"user");
-
-  generateAIResponse(detectedText);
+        speechSynthesis.speak(speech);
+    };
 }
 
-function sendManualMessage(){
+function addMessage(sender, text) {
 
-  const input =
-    document.getElementById("manualInput");
+    const div = document.createElement("div");
 
-  const text = input.value;
+    div.innerHTML =
+        `<b>${sender}:</b> ${text}`;
 
-  if(text.trim()==="") return;
-
-  addMessage(text,"user");
-
-  generateAIResponse(text);
-
-  input.value="";
-}
-
-async function generateAIResponse(userText){
-
-  try{
-
-    // Temporary AI response
-    const aiReply =
-      "AI Response: " + userText;
-
-    addMessage(aiReply,"ai");
-
-  }
-  catch(error){
-
-    addMessage(
-      "Something went wrong",
-      "ai"
-    );
-  }
-}
-
-function newChat(){
-  chatContainer.innerHTML="";
+    chatBox.appendChild(div);
 }
