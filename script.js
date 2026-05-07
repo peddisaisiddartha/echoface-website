@@ -1,7 +1,38 @@
-const startBtn = document.getElementById("startBtn");
-const chatBox = document.getElementById("chatBox");
+const video =
+    document.getElementById("video");
 
-startBtn.addEventListener("click", startListening);
+const startBtn =
+    document.getElementById("startBtn");
+
+const chatBox =
+    document.getElementById("chatBox");
+
+
+// CAMERA ACCESS
+navigator.mediaDevices.getUserMedia({
+    video: true,
+    audio: true
+})
+.then(stream => {
+
+    video.srcObject = stream;
+
+})
+.catch(err => {
+
+    alert(
+        "Camera/Microphone permission denied"
+    );
+
+});
+
+
+// START TALKING
+startBtn.addEventListener(
+    "click",
+    startListening
+);
+
 
 async function startListening() {
 
@@ -9,50 +40,110 @@ async function startListening() {
         window.SpeechRecognition ||
         window.webkitSpeechRecognition;
 
-    const recognition = new SpeechRecognition();
+    if (!SpeechRecognition) {
+
+        alert(
+            "Speech Recognition not supported"
+        );
+
+        return;
+    }
+
+    const recognition =
+        new SpeechRecognition();
 
     recognition.lang = "en-US";
 
     recognition.start();
 
-    recognition.onresult = async (event) => {
+    startBtn.innerText =
+        "Listening...";
 
-        const text = event.results[0][0].transcript;
+    recognition.onresult =
+    async function(event) {
 
-        addMessage("USER", text);
+        const text =
+            event.results[0][0].transcript;
 
-        const response = await fetch(
-            "YOUR_CLOUDFLARE_WORKER_URL",
-            {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                    text
-                })
-            }
+        addMessage(
+            text,
+            "user"
         );
 
-        const data = await response.json();
+        try {
 
-        addMessage("AI", data.response);
+            const response =
+                await fetch(
+                    "YOUR_CLOUDFLARE_WORKER_URL",
+                    {
+                        method: "POST",
 
-        const speech =
-            new SpeechSynthesisUtterance(
-                data.response
+                        headers: {
+                            "Content-Type":
+                                "application/json"
+                        },
+
+                        body: JSON.stringify({
+                            text
+                        })
+                    }
+                );
+
+            const data =
+                await response.json();
+
+            addMessage(
+                data.response,
+                "ai"
             );
 
-        speechSynthesis.speak(speech);
+            // AI VOICE RESPONSE
+            const speech =
+                new SpeechSynthesisUtterance(
+                    data.response
+                );
+
+            speech.lang =
+                "en-US";
+
+            speechSynthesis.speak(
+                speech
+            );
+
+        }
+        catch {
+
+            addMessage(
+                "API Error",
+                "ai"
+            );
+        }
+
+        startBtn.innerText =
+            "Start Talking";
     };
 }
 
-function addMessage(sender, text) {
 
-    const div = document.createElement("div");
+// ADD MESSAGE
+function addMessage(text, sender) {
+
+    const div =
+        document.createElement("div");
+
+    div.classList.add(
+        "message"
+    );
+
+    div.classList.add(
+        sender
+    );
 
     div.innerHTML =
-        `<b>${sender}:</b> ${text}`;
+        `<b>${sender.toUpperCase()}</b><br>${text}`;
 
     chatBox.appendChild(div);
+
+    chatBox.scrollTop =
+        chatBox.scrollHeight;
 }
