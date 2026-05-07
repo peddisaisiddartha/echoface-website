@@ -1,54 +1,46 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Silent Speech Assistant</title>
-  <link rel="stylesheet" href="style.css">
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <title>
+        Silent Speech Assistant
+    </title>
+
+    <link rel="stylesheet"
+          href="style.css">
+
 </head>
+
 <body>
 
-  <div class="sidebar">
-    <h2>Silent AI</h2>
+    <div class="container">
 
-    <button onclick="newChat()">New Chat</button>
+        <h1>
+            Silent Speech Assistant
+        </h1>
 
-    <div class="history">
-      <h3>Recent Chats</h3>
-      <ul id="historyList"></ul>
-    </div>
-  </div>
+        <video id="video"
+               autoplay
+               muted>
+        </video>
 
-  <div class="main">
+        <button id="startBtn">
+            Start Talking
+        </button>
 
-    <div class="topbar">
-      <h1 id="greeting"></h1>
-    </div>
+        <div id="chatBox">
+        </div>
 
-    <div class="camera-section">
-      <video id="video" autoplay playsinline></video>
-
-      <button onclick="captureLip()">
-        Capture Lip Input
-      </button>
     </div>
 
-    <div class="chat-container" id="chatContainer"></div>
+    <script src="script.js"></script>
 
-    <div class="input-area">
-      <input
-        type="text"
-        id="manualInput"
-        placeholder="Type message..."
-      />
-
-      <button onclick="sendManualMessage()">
-        Send
-      </button>
-    </div>
-
-  </div>
-
-  <script src="script.js"></script>
 </body>
+
 </html>
