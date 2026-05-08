@@ -4,8 +4,11 @@ document.getElementById("video");
 const detectedWord =
 document.getElementById("detectedWord");
 
+const chatBox =
+document.getElementById("chatBox");
 
-// START CAMERA
+
+// CAMERA
 async function startCamera() {
 
     const stream =
@@ -21,7 +24,7 @@ async function startCamera() {
 startCamera();
 
 
-// MEDIAPIPE FACEMESH
+// FACEMESH
 const faceMesh =
 new FaceMesh({
 
@@ -31,8 +34,6 @@ new FaceMesh({
     }
 });
 
-
-// SETTINGS
 faceMesh.setOptions({
 
     maxNumFaces: 1,
@@ -44,8 +45,6 @@ faceMesh.setOptions({
     minTrackingConfidence: 0.5
 });
 
-
-// RESULTS
 faceMesh.onResults(onResults);
 
 
@@ -68,7 +67,13 @@ new Camera(video, {
 camera.start();
 
 
-// LIP DETECTION
+// WORD MEMORY
+let currentWord = "";
+let lastStableWord = "";
+let stableStart = Date.now();
+
+
+// DETECTION
 function onResults(results) {
 
     if (
@@ -85,7 +90,6 @@ function onResults(results) {
     const landmarks =
         results.multiFaceLandmarks[0];
 
-    // LIPS
     const upperLip =
         landmarks[13];
 
@@ -98,7 +102,6 @@ function onResults(results) {
     const rightLip =
         landmarks[291];
 
-    // CALCULATE
     const mouthHeight =
         Math.abs(
             upperLip.y -
@@ -111,20 +114,14 @@ function onResults(results) {
             rightLip.x
         );
 
-    console.log(
-        mouthHeight,
-        mouthWidth
-    );
-
-    // SIMPLE WORD LOGIC
+    let detected = "";
 
     // HELLO
     if (
         mouthHeight > 0.06
     ) {
 
-        detectedWord.innerText =
-            "HELLO";
+        detected = "HELLO";
     }
 
     // YES
@@ -132,14 +129,112 @@ function onResults(results) {
         mouthWidth > 0.15
     ) {
 
-        detectedWord.innerText =
-            "YES";
+        detected = "YES";
     }
 
     // NO
     else {
 
-        detectedWord.innerText =
-            "NO";
+        detected = "NO";
     }
+
+    detectedWord.innerText =
+        detected;
+
+    // STABILITY CHECK
+    if (
+        detected !== currentWord
+    ) {
+
+        currentWord = detected;
+
+        stableStart = Date.now();
+    }
+
+    // 1 SECOND STABLE
+    if (
+        Date.now() - stableStart > 1000 &&
+        detected !== lastStableWord
+    ) {
+
+        lastStableWord = detected;
+
+        triggerAI(detected);
+    }
+}
+
+
+// AI RESPONSES
+function triggerAI(word) {
+
+    addMessage(
+        word,
+        "user"
+    );
+
+    let aiReply = "";
+
+    if (word === "HELLO") {
+
+        aiReply =
+            "Hello. Nice to meet you.";
+
+    } else if (word === "YES") {
+
+        aiReply =
+            "Okay. You said yes.";
+
+    } else if (word === "NO") {
+
+        aiReply =
+            "Understood. You said no.";
+    }
+
+    addMessage(
+        aiReply,
+        "ai"
+    );
+
+    // SPEAK
+    const speech =
+        new SpeechSynthesisUtterance(
+            aiReply
+        );
+
+    speech.lang =
+        "en-US";
+
+    speechSynthesis.speak(
+        speech
+    );
+}
+
+
+// CHAT UI
+function addMessage(
+    text,
+    sender
+) {
+
+    const div =
+        document.createElement("div");
+
+    div.classList.add(
+        "message"
+    );
+
+    div.classList.add(
+        sender
+    );
+
+    div.innerHTML =
+        "<b>" +
+        sender.toUpperCase() +
+        "</b><br>" +
+        text;
+
+    chatBox.appendChild(div);
+
+    chatBox.scrollTop =
+        chatBox.scrollHeight;
 }
