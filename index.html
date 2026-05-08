@@ -25,13 +25,17 @@
       Silent Speech Assistant
     </h1>
 
-    <video id="video"
-           autoplay
-           playsinline
-           muted>
-    </video>
+    <div class="videoContainer">
 
-    <canvas id="canvas"></canvas>
+      <video id="video"
+             autoplay
+             playsinline
+             muted>
+      </video>
+
+      <canvas id="canvas"></canvas>
+
+    </div>
 
     <h2 id="detectedWord">
       Waiting...
@@ -47,7 +51,18 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
 
-  <script src="script.js"></script>
+  <!-- MODULES -->
+  <script src="js/ui.js"></script>
+
+  <script src="js/speech.js"></script>
+
+  <script src="js/camera.js"></script>
+
+  <script src="js/facemesh.js"></script>
+
+  <script src="js/lipDetection.js"></script>
+
+  <script src="js/main.js"></script>
 
 </body>
 
