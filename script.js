@@ -1,18 +1,8 @@
-const startBtn =
-document.getElementById("startBtn");
+const startBtn = document.getElementById("startBtn");
+const chatBox = document.getElementById("chatBox");
 
-const chatBox =
-document.getElementById("chatBox");
+startBtn.addEventListener("click", startListening);
 
-
-// START BUTTON
-startBtn.addEventListener(
-    "click",
-    startListening
-);
-
-
-// MAIN FUNCTION
 async function startListening() {
 
     const SpeechRecognition =
@@ -20,35 +10,25 @@ async function startListening() {
         window.webkitSpeechRecognition;
 
     if (!SpeechRecognition) {
-
-        alert(
-            "Speech Recognition not supported"
-        );
-
+        alert("Speech Recognition not supported");
         return;
     }
 
     const recognition =
         new SpeechRecognition();
 
-    recognition.lang =
-        "en-US";
+    recognition.lang = "en-US";
 
     recognition.start();
 
-    startBtn.innerText =
-        "Listening...";
+    startBtn.innerText = "Listening...";
 
-    recognition.onresult =
-    async function(event) {
+    recognition.onresult = async function(event) {
 
         const text =
             event.results[0][0].transcript;
 
-        addMessage(
-            text,
-            "user"
-        );
+        addMessage(text, "user");
 
         try {
 
@@ -82,12 +62,9 @@ async function startListening() {
                     data.response
                 );
 
-            speech.lang =
-                "en-US";
+            speech.lang = "en-US";
 
-            speechSynthesis.speak(
-                speech
-            );
+            speechSynthesis.speak(speech);
 
         }
         catch(error) {
@@ -105,26 +82,20 @@ async function startListening() {
     };
 }
 
-
-// ADD MESSAGE
-function addMessage(
-    text,
-    sender
-) {
+function addMessage(text, sender) {
 
     const div =
         document.createElement("div");
 
-    div.classList.add(
-        "message"
-    );
+    div.classList.add("message");
 
-    div.classList.add(
-        sender
-    );
+    div.classList.add(sender);
 
     div.innerHTML =
-        `<b>${sender.toUpperCase()}</b><br>${text}`;
+        "<b>" +
+        sender.toUpperCase() +
+        "</b><br>" +
+        text;
 
     chatBox.appendChild(div);
 
