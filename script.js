@@ -1,187 +1,145 @@
 const video =
 document.getElementById("video");
 
-const startBtn =
-document.getElementById("startBtn");
-
-const statusText =
-document.getElementById("status");
-
-const chatBox =
-document.getElementById("chatBox");
+const detectedWord =
+document.getElementById("detectedWord");
 
 
 // START CAMERA
 async function startCamera() {
 
-    try {
+    const stream =
+        await navigator.mediaDevices.getUserMedia({
+            video: true
+        });
 
-        const stream =
-            await navigator.mediaDevices.getUserMedia({
-                video: true,
-                audio: true
-            });
+    video.srcObject = stream;
 
-        video.srcObject = stream;
-
-        await video.play();
-
-        console.log(
-            "Camera started"
-        );
-
-    }
-    catch(error) {
-
-        console.log(error);
-
-        alert(
-            "Camera access denied"
-        );
-    }
+    await video.play();
 }
 
 startCamera();
 
 
-// BUTTON
-startBtn.addEventListener(
-    "click",
-    startListening
-);
+// MEDIAPIPE FACEMESH
+const faceMesh =
+new FaceMesh({
+
+    locateFile: (file) => {
+
+        return `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`;
+    }
+});
 
 
-// START SPEECH
-function startListening() {
+// SETTINGS
+faceMesh.setOptions({
 
-    const SpeechRecognition =
-        window.SpeechRecognition ||
-        window.webkitSpeechRecognition;
+    maxNumFaces: 1,
 
-    if (!SpeechRecognition) {
+    refineLandmarks: true,
 
-        alert(
-            "Speech Recognition not supported"
-        );
+    minDetectionConfidence: 0.5,
+
+    minTrackingConfidence: 0.5
+});
+
+
+// RESULTS
+faceMesh.onResults(onResults);
+
+
+// CAMERA LOOP
+const camera =
+new Camera(video, {
+
+    onFrame: async () => {
+
+        await faceMesh.send({
+            image: video
+        });
+    },
+
+    width: 640,
+
+    height: 480
+});
+
+camera.start();
+
+
+// LIP DETECTION
+function onResults(results) {
+
+    if (
+        !results.multiFaceLandmarks ||
+        results.multiFaceLandmarks.length === 0
+    ) {
+
+        detectedWord.innerText =
+            "No Face";
 
         return;
     }
 
-    const recognition =
-        new SpeechRecognition();
+    const landmarks =
+        results.multiFaceLandmarks[0];
 
-    recognition.lang =
-        "en-US";
+    // LIPS
+    const upperLip =
+        landmarks[13];
 
-    recognition.start();
+    const lowerLip =
+        landmarks[14];
 
-    statusText.innerText =
-        "Listening...";
+    const leftLip =
+        landmarks[61];
 
-    recognition.onresult =
-    async function(event) {
+    const rightLip =
+        landmarks[291];
 
-        const text =
-            event.results[0][0].transcript;
-
-        addMessage(
-            text,
-            "user"
+    // CALCULATE
+    const mouthHeight =
+        Math.abs(
+            upperLip.y -
+            lowerLip.y
         );
 
-        statusText.innerText =
-            "Thinking...";
+    const mouthWidth =
+        Math.abs(
+            leftLip.x -
+            rightLip.x
+        );
 
-        try {
-
-            const response =
-                await fetch(
-                    "https://silent-api.liveatlasco.workers.dev",
-                    {
-                        method: "POST",
-
-                        headers: {
-                            "Content-Type":
-                                "application/json"
-                        },
-
-                        body: JSON.stringify({
-                            text: text
-                        })
-                    }
-                );
-
-            const data =
-                await response.json();
-
-            console.log(data);
-
-            const aiReply =
-                data.response ||
-                "No response";
-
-            addMessage(
-                aiReply,
-                "ai"
-            );
-
-            const speech =
-                new SpeechSynthesisUtterance(
-                    aiReply
-                );
-
-            speech.lang =
-                "en-US";
-
-            speechSynthesis.speak(
-                speech
-            );
-
-            statusText.innerText =
-                "Waiting...";
-
-        }
-        catch(error) {
-
-            console.log(error);
-
-            addMessage(
-                "API Error",
-                "ai"
-            );
-
-            statusText.innerText =
-                "Error";
-        }
-    };
-}
-
-
-// CHAT
-function addMessage(
-    text,
-    sender
-) {
-
-    const div =
-        document.createElement("div");
-
-    div.classList.add(
-        "message"
+    console.log(
+        mouthHeight,
+        mouthWidth
     );
 
-    div.classList.add(
-        sender
-    );
+    // SIMPLE WORD LOGIC
 
-    div.innerHTML =
-        "<b>" +
-        sender.toUpperCase() +
-        "</b><br>" +
-        text;
+    // HELLO
+    if (
+        mouthHeight > 0.06
+    ) {
 
-    chatBox.appendChild(div);
+        detectedWord.innerText =
+            "HELLO";
+    }
 
-    chatBox.scrollTop =
-        chatBox.scrollHeight;
+    // YES
+    else if (
+        mouthWidth > 0.15
+    ) {
+
+        detectedWord.innerText =
+            "YES";
+    }
+
+    // NO
+    else {
+
+        detectedWord.innerText =
+            "NO";
+    }
 }
