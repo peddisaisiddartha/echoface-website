@@ -3,54 +3,50 @@
 
 <head>
 
-  <meta charset="UTF-8">
+    <meta charset="UTF-8">
 
-  <meta name="viewport"
-        content="width=device-width, initial-scale=1.0">
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
 
-  <title>
-    Silent Speech Assistant
-  </title>
+    <title>
+        Silent Speech Assistant
+    </title>
 
-  <link rel="stylesheet"
-        href="style.css">
-
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
-
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <link rel="stylesheet"
+          href="style.css">
 
 </head>
 
 <body>
 
-  <div class="container">
+    <div class="container">
 
-    <h1>
-      Silent Speech Assistant
-    </h1>
+        <h1>
+            Silent Speech Assistant
+        </h1>
 
-    <video id="video"
-           autoplay
-           muted>
-    </video>
+        <video id="video"
+               autoplay
+               playsinline
+               muted>
+        </video>
 
-    <canvas id="canvas">
-    </canvas>
+        <br>
 
-    <button id="startBtn">
-      Start Detection
-    </button>
+        <button id="startBtn">
+            Start Detection
+        </button>
 
-    <div id="status">
-      Waiting...
+        <h2 id="status">
+            Waiting...
+        </h2>
+
+        <div id="chatBox">
+        </div>
+
     </div>
 
-    <div id="chatBox">
-    </div>
-
-  </div>
-
-  <script src="script.js"></script>
+    <script src="script.js"></script>
 
 </body>
 
