@@ -1,39 +1,18 @@
-const video =
-    document.getElementById("video");
-
 const startBtn =
-    document.getElementById("startBtn");
+document.getElementById("startBtn");
 
 const chatBox =
-    document.getElementById("chatBox");
+document.getElementById("chatBox");
 
 
-// CAMERA ACCESS
-navigator.mediaDevices.getUserMedia({
-    video: true,
-    audio: true
-})
-.then(stream => {
-
-    video.srcObject = stream;
-
-})
-.catch(err => {
-
-    alert(
-        "Camera/Microphone permission denied"
-    );
-
-});
-
-
-// START TALKING
+// START BUTTON
 startBtn.addEventListener(
     "click",
     startListening
 );
 
 
+// MAIN FUNCTION
 async function startListening() {
 
     const SpeechRecognition =
@@ -52,7 +31,8 @@ async function startListening() {
     const recognition =
         new SpeechRecognition();
 
-    recognition.lang = "en-US";
+    recognition.lang =
+        "en-US";
 
     recognition.start();
 
@@ -74,7 +54,7 @@ async function startListening() {
 
             const response =
                 await fetch(
-                    https://silent-api.liveatlasco.workers.dev
+                    "https://silent-api.liveatlasco.workers.dev",
                     {
                         method: "POST",
 
@@ -84,7 +64,7 @@ async function startListening() {
                         },
 
                         body: JSON.stringify({
-                            text
+                            text: text
                         })
                     }
                 );
@@ -97,7 +77,6 @@ async function startListening() {
                 "ai"
             );
 
-            // AI VOICE RESPONSE
             const speech =
                 new SpeechSynthesisUtterance(
                     data.response
@@ -111,7 +90,9 @@ async function startListening() {
             );
 
         }
-        catch {
+        catch(error) {
+
+            console.log(error);
 
             addMessage(
                 "API Error",
@@ -126,7 +107,10 @@ async function startListening() {
 
 
 // ADD MESSAGE
-function addMessage(text, sender) {
+function addMessage(
+    text,
+    sender
+) {
 
     const div =
         document.createElement("div");
