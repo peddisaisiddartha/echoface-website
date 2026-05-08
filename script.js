@@ -1,104 +1,250 @@
-const startBtn = document.getElementById("startBtn");
-const chatBox = document.getElementById("chatBox");
+const video =
+document.getElementById("video");
 
-startBtn.addEventListener("click", startListening);
+const canvas =
+document.getElementById("canvas");
 
-async function startListening() {
+const ctx =
+canvas.getContext("2d");
 
-    const SpeechRecognition =
-        window.SpeechRecognition ||
-        window.webkitSpeechRecognition;
+const statusText =
+document.getElementById("status");
 
-    if (!SpeechRecognition) {
-        alert("Speech Recognition not supported");
-        return;
+const chatBox =
+document.getElementById("chatBox");
+
+
+// START CAMERA
+navigator.mediaDevices.getUserMedia({
+    video: true
+})
+.then((stream) => {
+
+    video.srcObject = stream;
+
+})
+.catch((err) => {
+
+    alert(
+        "Camera access denied"
+    );
+
+});
+
+
+// MEDIAPIPE
+const faceMesh =
+new FaceMesh({
+
+    locateFile: (file) => {
+
+        return `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`;
+
     }
 
-    const recognition =
-        new SpeechRecognition();
+});
 
-    recognition.lang = "en-US";
 
-    recognition.start();
+faceMesh.setOptions({
 
-    startBtn.innerText = "Listening...";
+    maxNumFaces: 1,
 
-    recognition.onresult = async function(event) {
+    refineLandmarks: true,
 
-        const text =
-            event.results[0][0].transcript;
+    minDetectionConfidence: 0.5,
 
-        addMessage(text, "user");
+    minTrackingConfidence: 0.5
 
-        try {
+});
 
-            const response =
-                await fetch(
-                    "https://silent-api.liveatlasco.workers.dev",
-                    {
-                        method: "POST",
 
-                        headers: {
-                            "Content-Type":
-                                "application/json"
-                        },
+// RESULTS
+faceMesh.onResults(onResults);
 
-                        body: JSON.stringify({
-                            text: text
-                        })
-                    }
+
+// CAMERA PROCESSING
+const camera =
+new Camera(video, {
+
+    onFrame: async () => {
+
+        await faceMesh.send({
+            image: video
+        });
+
+    },
+
+    width: 640,
+    height: 480
+
+});
+
+
+camera.start();
+
+
+// RESULTS FUNCTION
+function onResults(results) {
+
+    canvas.width =
+        video.videoWidth;
+
+    canvas.height =
+        video.videoHeight;
+
+    ctx.clearRect(
+        0,
+        0,
+        canvas.width,
+        canvas.height
+    );
+
+    if (
+        results.multiFaceLandmarks
+    ) {
+
+        for (
+            const landmarks
+            of results.multiFaceLandmarks
+        ) {
+
+            // LIPS
+            const upperLip =
+                landmarks[13];
+
+            const lowerLip =
+                landmarks[14];
+
+            const mouthOpen =
+                Math.abs(
+                    upperLip.y -
+                    lowerLip.y
                 );
 
-            const data =
-                await response.json();
+            // DRAW
+            ctx.fillStyle =
+                "cyan";
 
-            addMessage(
-                data.response,
-                "ai"
+            ctx.beginPath();
+
+            ctx.arc(
+                upperLip.x *
+                canvas.width,
+
+                upperLip.y *
+                canvas.height,
+
+                5,
+                0,
+                2 * Math.PI
             );
 
-            const speech =
-                new SpeechSynthesisUtterance(
-                    data.response
-                );
+            ctx.fill();
 
-            speech.lang = "en-US";
+            ctx.beginPath();
 
-            speechSynthesis.speak(speech);
+            ctx.arc(
+                lowerLip.x *
+                canvas.width,
 
-        }
-        catch(error) {
+                lowerLip.y *
+                canvas.height,
 
-            console.log(error);
-
-            addMessage(
-                "API Error",
-                "ai"
+                5,
+                0,
+                2 * Math.PI
             );
-        }
 
-        startBtn.innerText =
-            "Start Talking";
-    };
+            ctx.fill();
+
+            // DETECTION
+            if (
+                mouthOpen > 0.02
+            ) {
+
+                statusText.innerText =
+                    "Lip Movement Detected";
+
+                respondAI();
+
+            }
+            else {
+
+                statusText.innerText =
+                    "Waiting...";
+            }
+        }
+    }
 }
 
-function addMessage(text, sender) {
 
-    const div =
-        document.createElement("div");
+let cooldown = false;
 
-    div.classList.add("message");
 
-    div.classList.add(sender);
+// AI RESPONSE
+async function respondAI() {
 
-    div.innerHTML =
-        "<b>" +
-        sender.toUpperCase() +
-        "</b><br>" +
-        text;
+    if (cooldown) return;
 
-    chatBox.appendChild(div);
+    cooldown = true;
 
-    chatBox.scrollTop =
-        chatBox.scrollHeight;
+    try {
+
+        const response =
+            await fetch(
+                "https://silent-api.liveatlasco.workers.dev",
+                {
+                    method: "POST",
+
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+
+                    body: JSON.stringify({
+                        text:
+                        "User is trying to communicate silently"
+                    })
+                }
+            );
+
+        const data =
+            await response.json();
+
+        addMessage(
+            data.response
+        );
+
+        const speech =
+            new SpeechSynthesisUtterance(
+                data.response
+            );
+
+        speechSynthesis.speak(
+            speech
+        );
+
+    }
+    catch {
+
+        addMessage(
+            "API Error"
+        );
+    }
+
+    setTimeout(() => {
+
+        cooldown = false;
+
+    }, 5000);
+}
+
+
+// CHAT
+function addMessage(text) {
+
+    chatBox.innerHTML +=
+        "<p>" +
+        text +
+        "</p>";
 }
