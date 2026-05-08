@@ -57,6 +57,12 @@ let lastStableWord = "";
 let stableStart =
 Date.now();
 
+//MOTION HISTORY
+let motionHistory = [];
+
+//MAX HISTORY SIZE
+const maxHistory = 20;
+
 
 // MAIN RESULTS FUNCTION
 function onResults(results) {
@@ -156,6 +162,30 @@ function onResults(results) {
             leftLip.x -
             rightLip.x
         );
+
+    // SAVE MOUTH MOVEMENT
+motionHistory.push({
+
+    height: mouthHeight,
+
+    width: mouthWidth,
+
+    time: Date.now()
+});
+
+// LIMIT SIZE
+if (
+    motionHistory.length >
+    maxHistory
+) {
+
+    motionHistory.shift();
+}
+
+// DEBUG HISTORY
+console.log(
+    motionHistory
+);
 
     // DETECT WORD
     const detected =
