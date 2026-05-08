@@ -12,7 +12,7 @@ document.getElementById("detectedWord");
 startCamera();
 
 
-// WHEN VIDEO READY
+// VIDEO READY
 video.addEventListener(
     "loadeddata",
     () => {
@@ -49,7 +49,7 @@ new Camera(video, {
 camera.start();
 
 
-// MEMORY
+// MEMORY VARIABLES
 let currentWord = "";
 
 let lastStableWord = "";
@@ -58,9 +58,10 @@ let stableStart =
 Date.now();
 
 
-// RESULTS
+// MAIN RESULTS FUNCTION
 function onResults(results) {
 
+    // CLEAR CANVAS
     ctx.clearRect(
         0,
         0,
@@ -68,6 +69,7 @@ function onResults(results) {
         canvas.height
     );
 
+    // NO FACE
     if (
         !results.multiFaceLandmarks ||
         results.multiFaceLandmarks.length === 0
@@ -79,10 +81,11 @@ function onResults(results) {
         return;
     }
 
+    // FACE LANDMARKS
     const landmarks =
         results.multiFaceLandmarks[0];
 
-    // LIP DOTS
+    // LIP LANDMARKS
     const lipIndexes = [
 
         61,146,91,181,84,17,
@@ -92,6 +95,7 @@ function onResults(results) {
 
     ];
 
+    // DRAW GREEN DOTS
     for (
         let i = 0;
         i < lipIndexes.length;
@@ -127,7 +131,7 @@ function onResults(results) {
         ctx.fill();
     }
 
-    // MOUTH DATA
+    // IMPORTANT LIP POINTS
     const upperLip =
         landmarks[13];
 
@@ -140,6 +144,7 @@ function onResults(results) {
     const rightLip =
         landmarks[291];
 
+    // CALCULATIONS
     const mouthHeight =
         Math.abs(
             upperLip.y -
@@ -159,10 +164,11 @@ function onResults(results) {
             mouthWidth
         );
 
+    // DISPLAY WORD
     detectedWord.innerText =
         detected;
 
-    // STABILITY
+    // STABILITY CHECK
     if (
         detected !== currentWord
     ) {
@@ -174,7 +180,7 @@ function onResults(results) {
             Date.now();
     }
 
-    // 1 SECOND STABLE
+    // STABLE FOR 1 SECOND
     if (
         Date.now() -
         stableStart > 1000 &&
@@ -192,7 +198,7 @@ function onResults(results) {
 }
 
 
-// AI
+// AI RESPONSE FUNCTION
 function triggerAI(word) {
 
     addMessage(
@@ -202,28 +208,68 @@ function triggerAI(word) {
 
     let aiReply = "";
 
+    // HELLO
     if (word === "HELLO") {
 
         aiReply =
             "Hello. Nice to meet you.";
     }
 
+    // YES
     else if (word === "YES") {
 
         aiReply =
             "Okay. You said yes.";
     }
 
-    else {
+    // NO
+    else if (word === "NO") {
 
         aiReply =
             "Understood. You said no.";
     }
 
+    // HELP
+    else if (word === "HELP") {
+
+        aiReply =
+            "Help request detected.";
+    }
+
+    // WATER
+    else if (word === "WATER") {
+
+        aiReply =
+            "Water assistance requested.";
+    }
+
+    // STOP
+    else if (word === "STOP") {
+
+        aiReply =
+            "Stopping current operation.";
+    }
+
+    // THANK YOU
+    else if (word === "THANK YOU") {
+
+        aiReply =
+            "You are welcome.";
+    }
+
+    // DEFAULT
+    else {
+
+        aiReply =
+            "Command detected.";
+    }
+
+    // SHOW CHAT
     addMessage(
         aiReply,
         "ai"
     );
 
+    // SPEAK RESPONSE
     speak(aiReply);
 }
