@@ -1,11 +1,8 @@
 const video =
 document.getElementById("video");
 
-const canvas =
-document.getElementById("canvas");
-
-const ctx =
-canvas.getContext("2d");
+const startBtn =
+document.getElementById("startBtn");
 
 const statusText =
 document.getElementById("status");
@@ -15,236 +12,176 @@ document.getElementById("chatBox");
 
 
 // START CAMERA
-navigator.mediaDevices.getUserMedia({
-    video: true
-})
-.then((stream) => {
-
-    video.srcObject = stream;
-
-})
-.catch((err) => {
-
-    alert(
-        "Camera access denied"
-    );
-
-});
-
-
-// MEDIAPIPE
-const faceMesh =
-new FaceMesh({
-
-    locateFile: (file) => {
-
-        return `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`;
-
-    }
-
-});
-
-
-faceMesh.setOptions({
-
-    maxNumFaces: 1,
-
-    refineLandmarks: true,
-
-    minDetectionConfidence: 0.5,
-
-    minTrackingConfidence: 0.5
-
-});
-
-
-// RESULTS
-faceMesh.onResults(onResults);
-
-
-// CAMERA PROCESSING
-const camera =
-new Camera(video, {
-
-    onFrame: async () => {
-
-        await faceMesh.send({
-            image: video
-        });
-
-    },
-
-    width: 640,
-    height: 480
-
-});
-
-
-camera.start();
-
-
-// RESULTS FUNCTION
-function onResults(results) {
-
-    canvas.width =
-        video.videoWidth;
-
-    canvas.height =
-        video.videoHeight;
-
-    ctx.clearRect(
-        0,
-        0,
-        canvas.width,
-        canvas.height
-    );
-
-    if (
-        results.multiFaceLandmarks
-    ) {
-
-        for (
-            const landmarks
-            of results.multiFaceLandmarks
-        ) {
-
-            // LIPS
-            const upperLip =
-                landmarks[13];
-
-            const lowerLip =
-                landmarks[14];
-
-            const mouthOpen =
-                Math.abs(
-                    upperLip.y -
-                    lowerLip.y
-                );
-
-            // DRAW
-            ctx.fillStyle =
-                "cyan";
-
-            ctx.beginPath();
-
-            ctx.arc(
-                upperLip.x *
-                canvas.width,
-
-                upperLip.y *
-                canvas.height,
-
-                5,
-                0,
-                2 * Math.PI
-            );
-
-            ctx.fill();
-
-            ctx.beginPath();
-
-            ctx.arc(
-                lowerLip.x *
-                canvas.width,
-
-                lowerLip.y *
-                canvas.height,
-
-                5,
-                0,
-                2 * Math.PI
-            );
-
-            ctx.fill();
-
-            // DETECTION
-            if (
-                mouthOpen > 0.02
-            ) {
-
-                statusText.innerText =
-                    "Lip Movement Detected";
-
-                respondAI();
-
-            }
-            else {
-
-                statusText.innerText =
-                    "Waiting...";
-            }
-        }
-    }
-}
-
-
-let cooldown = false;
-
-
-// AI RESPONSE
-async function respondAI() {
-
-    if (cooldown) return;
-
-    cooldown = true;
+async function startCamera() {
 
     try {
 
-        const response =
-            await fetch(
-                "https://silent-api.liveatlasco.workers.dev",
-                {
-                    method: "POST",
+        const stream =
+            await navigator.mediaDevices.getUserMedia({
+                video: true,
+                audio: true
+            });
 
-                    headers: {
-                        "Content-Type":
-                            "application/json"
-                    },
+        video.srcObject = stream;
 
-                    body: JSON.stringify({
-                        text:
-                        "User is trying to communicate silently"
-                    })
-                }
-            );
+        await video.play();
 
-        const data =
-            await response.json();
-
-        addMessage(
-            data.response
-        );
-
-        const speech =
-            new SpeechSynthesisUtterance(
-                data.response
-            );
-
-        speechSynthesis.speak(
-            speech
+        console.log(
+            "Camera started"
         );
 
     }
-    catch {
+    catch(error) {
 
-        addMessage(
-            "API Error"
+        console.log(error);
+
+        alert(
+            "Camera access denied"
         );
     }
+}
 
-    setTimeout(() => {
+startCamera();
 
-        cooldown = false;
 
-    }, 5000);
+// BUTTON
+startBtn.addEventListener(
+    "click",
+    startListening
+);
+
+
+// START SPEECH
+function startListening() {
+
+    const SpeechRecognition =
+        window.SpeechRecognition ||
+        window.webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+
+        alert(
+            "Speech Recognition not supported"
+        );
+
+        return;
+    }
+
+    const recognition =
+        new SpeechRecognition();
+
+    recognition.lang =
+        "en-US";
+
+    recognition.start();
+
+    statusText.innerText =
+        "Listening...";
+
+    recognition.onresult =
+    async function(event) {
+
+        const text =
+            event.results[0][0].transcript;
+
+        addMessage(
+            text,
+            "user"
+        );
+
+        statusText.innerText =
+            "Thinking...";
+
+        try {
+
+            const response =
+                await fetch(
+                    "https://silent-api.liveatlasco.workers.dev",
+                    {
+                        method: "POST",
+
+                        headers: {
+                            "Content-Type":
+                                "application/json"
+                        },
+
+                        body: JSON.stringify({
+                            text: text
+                        })
+                    }
+                );
+
+            const data =
+                await response.json();
+
+            console.log(data);
+
+            const aiReply =
+                data.response ||
+                "No response";
+
+            addMessage(
+                aiReply,
+                "ai"
+            );
+
+            const speech =
+                new SpeechSynthesisUtterance(
+                    aiReply
+                );
+
+            speech.lang =
+                "en-US";
+
+            speechSynthesis.speak(
+                speech
+            );
+
+            statusText.innerText =
+                "Waiting...";
+
+        }
+        catch(error) {
+
+            console.log(error);
+
+            addMessage(
+                "API Error",
+                "ai"
+            );
+
+            statusText.innerText =
+                "Error";
+        }
+    };
 }
 
 
 // CHAT
-function addMessage(text) {
+function addMessage(
+    text,
+    sender
+) {
 
-    chatBox.innerHTML +=
-        "<p>" +
-        text +
-        "</p>";
+    const div =
+        document.createElement("div");
+
+    div.classList.add(
+        "message"
+    );
+
+    div.classList.add(
+        sender
+    );
+
+    div.innerHTML =
+        "<b>" +
+        sender.toUpperCase() +
+        "</b><br>" +
+        text;
+
+    chatBox.appendChild(div);
+
+    chatBox.scrollTop =
+        chatBox.scrollHeight;
 }
