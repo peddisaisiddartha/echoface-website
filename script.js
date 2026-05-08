@@ -74,7 +74,7 @@ async function startListening() {
 
             const response =
                 await fetch(
-                    "YOUR_CLOUDFLARE_WORKER_URL",
+                    https://silent-api.liveatlasco.workers.dev
                     {
                         method: "POST",
 
