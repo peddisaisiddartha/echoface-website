@@ -302,4 +302,6 @@ function triggerAI(word) {
 
     // SPEAK RESPONSE
     speak(aiReply);
+    
+    sendToESP32(aiReply);
 }
