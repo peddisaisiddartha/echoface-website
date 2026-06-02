@@ -183,9 +183,9 @@ if (
 }
 
 // DEBUG HISTORY
-console.log(
-    motionHistory
-);
+// console.log(
+//  motionHistory
+// );
 
     // DETECT WORD
     const detected =
