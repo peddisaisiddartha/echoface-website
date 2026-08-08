@@ -1,239 +1,253 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
+import { useRouter } from "next/router";
 import Navbar from "../components/Navbar";
 import RideCard from "../components/RideCard";
 import PostRideModal from "../components/PostRideModal";
-import BookingModal from "../components/BookingModal";
-import { INITIAL_RIDES } from "../utils/mockData";
+import { supabase } from "../utils/supabase";
 
-const RIDES_STORAGE_KEY = "echoface_rides";
-const BOOKINGS_STORAGE_KEY = "echoface_bookings";
+function mapRide(row) {
+  return {
+    id: row.id,
+    driverId: row.driver_id,
+    driverName: row.driver_name,
+    college: row.college,
+    gate: row.gate,
+    vehicleType: row.vehicle_type,
+    vehicleName: row.vehicle_name,
+    departureTime: row.departure_time,
+    pickupLocation: row.pickup_location,
+    seatsAvailable: row.seats_available,
+    totalSeats: row.total_seats,
+    costPerSeat: Number(row.cost_per_seat),
+    genderPreference: row.gender_preference,
+    status: row.status,
+    createdAt: row.created_at,
+  };
+}
 
 export default function Home() {
+  const router = useRouter();
+
   const [rides, setRides] = useState([]);
   const [selectedCollege, setSelectedCollege] = useState(
     "MLR Institute of Technology"
   );
   const [filterVehicle, setFilterVehicle] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
-  const [isPostModalOpen, setIsPostModalOpen] =
-    useState(false);
-  const [isBookingModalOpen, setIsBookingModalOpen] =
-    useState(false);
-  const [selectedRide, setSelectedRide] = useState(null);
-  const [isLoaded, setIsLoaded] = useState(false);
+
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState(null);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
+    let mounted = true;
 
-    try {
-      const storedRides = window.localStorage.getItem(
-        RIDES_STORAGE_KEY
-      );
+    const loadSessionAndRides = async () => {
+      setLoading(true);
+      setError("");
 
-      if (storedRides) {
-        const parsedRides = JSON.parse(storedRides);
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
 
-        setRides(
-          Array.isArray(parsedRides)
-            ? parsedRides
-            : INITIAL_RIDES
-        );
-      } else {
-        setRides(INITIAL_RIDES);
+      if (!mounted) {
+        return;
       }
-    } catch {
-      setRides(INITIAL_RIDES);
-    }
 
-    setIsLoaded(true);
-  }, []);
+      if (sessionError) {
+        setError("Unable to check your account.");
+        setLoading(false);
+        return;
+      }
 
-  useEffect(() => {
-    if (!isLoaded || typeof window === "undefined") {
-      return;
-    }
+      if (!session) {
+        router.replace("/auth/login");
+        return;
+      }
 
-    window.localStorage.setItem(
-      RIDES_STORAGE_KEY,
-      JSON.stringify(rides)
+      setUser(session.user);
+
+      const { data, error: ridesError } = await supabase
+        .from("rides")
+        .select("*")
+        .in("status", ["active", "full"])
+        .order("created_at", {
+          ascending: false,
+        });
+
+      if (!mounted) {
+        return;
+      }
+
+      if (ridesError) {
+        setError(
+          ridesError.message ||
+            "Unable to load available rides."
+        );
+        setLoading(false);
+        return;
+      }
+
+      setRides((data || []).map(mapRide));
+      setLoading(false);
+    };
+
+    loadSessionAndRides();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        if (!mounted) {
+          return;
+        }
+
+        if (event === "SIGNED_OUT" || !session) {
+          router.replace("/auth/login");
+          return;
+        }
+
+        setUser(session.user);
+      }
     );
-  }, [rides, isLoaded]);
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, [router]);
 
   const handleAddRide = (newRide) => {
     setRides((currentRides) => [
-      newRide,
+      mapRide(newRide),
       ...currentRides,
     ]);
   };
 
-  const handleOpenBooking = (ride) => {
-    if (ride.seatsAvailable <= 0) {
-      window.alert("This ride is already full.");
+  const handleBookRide = async (ride) => {
+    if (!user) {
+      router.push("/auth/login");
       return;
     }
 
-    setSelectedRide(ride);
-    setIsBookingModalOpen(true);
-  };
+    setError("");
 
-  const handleConfirmBooking = ({
-    passengerName,
-  }) => {
-    if (!selectedRide) {
-      return;
-    }
-
-    const currentRides = rides;
-
-    const ride = currentRides.find(
-      (item) => item.id === selectedRide.id
+    const { error: bookingError } = await supabase.rpc(
+      "book_ride",
+      {
+        p_ride_id: ride.id,
+      }
     );
 
-    if (!ride || ride.seatsAvailable <= 0) {
-      window.alert(
-        "Sorry, this ride is no longer available."
+    if (bookingError) {
+      setError(
+        bookingError.message ||
+          "Unable to book this ride."
       );
-      setIsBookingModalOpen(false);
-      setSelectedRide(null);
       return;
     }
 
-    const booking = {
-      id: `booking-${Date.now()}`,
-      rideId: ride.id,
-      passengerName,
-      driverName: ride.driverName,
-      pickupLocation: ride.pickupLocation,
-      gate: ride.gate,
-      departureTime: ride.departureTime,
-      costPerSeat: ride.costPerSeat,
-      bookedAt: new Date().toISOString(),
-    };
+    setRides((currentRides) =>
+      currentRides
+        .map((currentRide) => {
+          if (currentRide.id !== ride.id) {
+            return currentRide;
+          }
 
-    const updatedRides = currentRides.map(
-      (currentRide) =>
-        currentRide.id === ride.id
-          ? {
-              ...currentRide,
-              seatsAvailable:
-                currentRide.seatsAvailable - 1,
-            }
-          : currentRide
+          const seatsAvailable =
+            currentRide.seatsAvailable - 1;
+
+          return {
+            ...currentRide,
+            seatsAvailable,
+            status:
+              seatsAvailable === 0
+                ? "full"
+                : "active",
+          };
+        })
+        .filter(
+          (currentRide) =>
+            currentRide.status === "active" ||
+            currentRide.status === "full"
+        )
     );
 
-    try {
-      window.localStorage.setItem(
-        RIDES_STORAGE_KEY,
-        JSON.stringify(updatedRides)
-      );
-
-      const storedBookings =
-        window.localStorage.getItem(
-          BOOKINGS_STORAGE_KEY
-        );
-
-      const existingBookings = storedBookings
-        ? JSON.parse(storedBookings)
-        : [];
-
-      const bookings = Array.isArray(existingBookings)
-        ? existingBookings
-        : [];
-
-      window.localStorage.setItem(
-        BOOKINGS_STORAGE_KEY,
-        JSON.stringify([booking, ...bookings])
-      );
-
-      setRides(updatedRides);
-      setIsBookingModalOpen(false);
-      setSelectedRide(null);
-
-      window.alert(
-        `Booking confirmed for ${passengerName}.`
-      );
-    } catch {
-      window.alert(
-        "Unable to save your booking. Please try again."
-      );
-    }
+    alert("Ride booked successfully!");
   };
 
-  const filteredRides = useMemo(() => {
+  const filteredRides = rides.filter((ride) => {
+    const matchesCollege =
+      ride.college === selectedCollege;
+
+    const matchesVehicle =
+      filterVehicle === "All" ||
+      ride.vehicleType === filterVehicle;
+
     const query = searchQuery.trim().toLowerCase();
 
-    return rides.filter((ride) => {
-      const matchesCollege =
-        !selectedCollege ||
-        ride.college === selectedCollege;
+    const matchesLocation =
+      !query ||
+      ride.pickupLocation
+        .toLowerCase()
+        .includes(query) ||
+      ride.gate.toLowerCase().includes(query);
 
-      const matchesVehicle =
-        filterVehicle === "All" ||
-        ride.vehicleType === filterVehicle;
+    return (
+      matchesCollege &&
+      matchesVehicle &&
+      matchesLocation
+    );
+  });
 
-      const matchesLocation =
-        !query ||
-        ride.pickupLocation
-          .toLowerCase()
-          .includes(query) ||
-        ride.gate.toLowerCase().includes(query) ||
-        ride.college.toLowerCase().includes(query);
+  if (loading) {
+    return (
+      <>
+        <Navbar
+          onOpenPostModal={() => setIsModalOpen(true)}
+        />
 
-      return (
-        matchesCollege &&
-        matchesVehicle &&
-        matchesLocation
-      );
-    });
-  }, [
-    rides,
-    selectedCollege,
-    filterVehicle,
-    searchQuery,
-  ]);
+        <main className="flex min-h-[70vh] items-center justify-center px-4">
+          <div className="text-sm font-medium text-slate-500">
+            Loading available rides...
+          </div>
+        </main>
+      </>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50">
       <Navbar
-        onOpenPostModal={() =>
-          setIsPostModalOpen(true)
-        }
+        onOpenPostModal={() => setIsModalOpen(true)}
       />
 
       <section className="bg-indigo-900 px-4 py-12 text-white shadow-inner">
         <div className="mx-auto max-w-4xl space-y-4 text-center">
-          <p className="text-sm font-bold uppercase tracking-[0.2em] text-amber-400">
-            EchoFace Campus Mobility
-          </p>
-
           <h1 className="text-3xl font-extrabold md:text-4xl">
             Direct Rides Right to Your Campus Gate
           </h1>
 
           <p className="mx-auto max-w-xl text-sm text-indigo-200 md:text-base">
-            Skip congested transfers. Find fellow students
-            heading directly to your college gate by bike,
-            car, or shared auto.
+            Skip congested transfers. Find peer students
+            heading directly to your college gate in
+            bikes, cars, or shared autos.
           </p>
 
           <div className="mx-auto mt-6 grid max-w-3xl grid-cols-1 gap-3 rounded-2xl bg-white p-4 text-slate-800 shadow-xl md:grid-cols-3">
             <div>
-              <label
-                htmlFor="college"
-                className="mb-1 block text-left text-xs font-bold text-slate-500"
-              >
+              <label className="mb-1 block text-left text-xs font-bold text-slate-500">
                 YOUR COLLEGE
               </label>
 
               <select
-                id="college"
                 value={selectedCollege}
                 onChange={(event) =>
                   setSelectedCollege(event.target.value)
                 }
-                className="w-full rounded-lg border border-slate-200 bg-slate-100 p-2.5 text-sm font-semibold outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                className="w-full rounded-lg border border-slate-200 bg-slate-100 p-2.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
                 <option>
                   MLR Institute of Technology
@@ -245,40 +259,32 @@ export default function Home() {
             </div>
 
             <div>
-              <label
-                htmlFor="search"
-                className="mb-1 block text-left text-xs font-bold text-slate-500"
-              >
+              <label className="mb-1 block text-left text-xs font-bold text-slate-500">
                 PICKUP POINT / GATE
               </label>
 
               <input
-                id="search"
-                type="search"
+                type="text"
                 placeholder="e.g. Gandi Maisamma, Gate 2"
                 value={searchQuery}
                 onChange={(event) =>
                   setSearchQuery(event.target.value)
                 }
-                className="w-full rounded-lg border border-slate-200 bg-slate-100 p-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                className="w-full rounded-lg border border-slate-200 bg-slate-100 p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
 
             <div>
-              <label
-                htmlFor="vehicle"
-                className="mb-1 block text-left text-xs font-bold text-slate-500"
-              >
+              <label className="mb-1 block text-left text-xs font-bold text-slate-500">
                 VEHICLE TYPE
               </label>
 
               <select
-                id="vehicle"
                 value={filterVehicle}
                 onChange={(event) =>
                   setFilterVehicle(event.target.value)
                 }
-                className="w-full rounded-lg border border-slate-200 bg-slate-100 p-2.5 text-sm font-semibold outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                className="w-full rounded-lg border border-slate-200 bg-slate-100 p-2.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
                 <option value="All">
                   All Modes (Bike, Car, Auto)
@@ -295,7 +301,16 @@ export default function Home() {
       </section>
 
       <main className="mx-auto max-w-5xl px-4 py-8">
-        <div className="mb-6 flex items-center justify-between gap-4">
+        {error && (
+          <div
+            role="alert"
+            className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+          >
+            {error}
+          </div>
+        )}
+
+        <div className="mb-6 flex items-center justify-between">
           <div>
             <h2 className="text-xl font-bold text-slate-800">
               Available Commutes
@@ -309,31 +324,15 @@ export default function Home() {
             </p>
           </div>
 
-          <span className="shrink-0 rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-800">
-            {filteredRides.length} Active{" "}
-            {filteredRides.length === 1
-              ? "Ride"
-              : "Rides"}
+          <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-800">
+            {filteredRides.length} Active Rides
           </span>
         </div>
 
-        {!isLoaded ? (
+        {filteredRides.length === 0 ? (
           <div className="rounded-xl border border-slate-200 bg-white py-12 text-center text-sm text-slate-500">
-            Loading rides...
-          </div>
-        ) : filteredRides.length === 0 ? (
-          <div className="rounded-xl border border-slate-200 bg-white py-12 text-center text-sm text-slate-500">
-            <p>No rides match your filter.</p>
-
-            <button
-              type="button"
-              onClick={() =>
-                setIsPostModalOpen(true)
-              }
-              className="mt-3 font-bold text-indigo-600 hover:text-indigo-800"
-            >
-              Be the first to post a ride →
-            </button>
+            No rides match your filter. Be the first to
+            post a ride!
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -341,7 +340,7 @@ export default function Home() {
               <RideCard
                 key={ride.id}
                 ride={ride}
-                onBook={handleOpenBooking}
+                onBook={handleBookRide}
               />
             ))}
           </div>
@@ -349,21 +348,9 @@ export default function Home() {
       </main>
 
       <PostRideModal
-        isOpen={isPostModalOpen}
-        onClose={() =>
-          setIsPostModalOpen(false)
-        }
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
         onAddRide={handleAddRide}
-      />
-
-      <BookingModal
-        isOpen={isBookingModalOpen}
-        ride={selectedRide}
-        onClose={() => {
-          setIsBookingModalOpen(false);
-          setSelectedRide(null);
-        }}
-        onConfirm={handleConfirmBooking}
       />
     </div>
   );

@@ -1,301 +1,348 @@
 import React, { useEffect, useState } from "react";
-import Navbar from "../components/Navbar";
-
-const RIDES_STORAGE_KEY = "echoface_rides";
-const BOOKINGS_STORAGE_KEY = "echoface_bookings";
+import Link from "next/link";
+import { useRouter } from "next/router";
+import { supabase } from "../../src/utils/supabase";
 
 export default function MyBookings() {
+  const router = useRouter();
+
   const [bookings, setBookings] = useState([]);
-  const [rides, setRides] = useState([]);
-  const [isLoaded, setIsLoaded] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [cancellingId, setCancellingId] = useState(null);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    if (typeof window === "undefined") {
+    let mounted = true;
+
+    const loadBookings = async () => {
+      setLoading(true);
+      setError("");
+
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (!mounted) {
+        return;
+      }
+
+      if (userError || !user) {
+        router.replace("/auth/login");
+        return;
+      }
+
+      const { data, error: bookingsError } =
+        await supabase
+          .from("bookings")
+          .select(
+            `
+              id,
+              status,
+              created_at,
+              ride_id,
+              ride:rides (
+                id,
+                driver_name,
+                college,
+                pickup_location,
+                gate,
+                vehicle_type,
+                vehicle_name,
+                departure_time,
+                cost_per_seat,
+                gender_preference
+              )
+            `
+          )
+          .eq("passenger_id", user.id)
+          .order("created_at", {
+            ascending: false,
+          });
+
+      if (!mounted) {
+        return;
+      }
+
+      if (bookingsError) {
+        setError(
+          bookingsError.message ||
+            "Unable to load your bookings."
+        );
+        setLoading(false);
+        return;
+      }
+
+      setBookings(data || []);
+      setLoading(false);
+    };
+
+    loadBookings();
+
+    return () => {
+      mounted = false;
+    };
+  }, [router]);
+
+  const handleCancel = async (bookingId) => {
+    setCancellingId(bookingId);
+    setError("");
+
+    const { error: cancelError } =
+      await supabase.rpc("cancel_booking", {
+        p_booking_id: bookingId,
+      });
+
+    if (cancelError) {
+      setError(
+        cancelError.message ||
+          "Unable to cancel this booking."
+      );
+      setCancellingId(null);
       return;
     }
 
-    try {
-      const storedBookings = window.localStorage.getItem(
-        BOOKINGS_STORAGE_KEY
-      );
-
-      const storedRides = window.localStorage.getItem(
-        RIDES_STORAGE_KEY
-      );
-
-      const parsedBookings = storedBookings
-        ? JSON.parse(storedBookings)
-        : [];
-
-      const parsedRides = storedRides
-        ? JSON.parse(storedRides)
-        : [];
-
-      setBookings(
-        Array.isArray(parsedBookings) ? parsedBookings : []
-      );
-
-      setRides(Array.isArray(parsedRides) ? parsedRides : []);
-    } catch {
-      setBookings([]);
-      setRides([]);
-    }
-
-    setIsLoaded(true);
-  }, []);
-
-  const getRideForBooking = (booking) => {
-    return rides.find((ride) => ride.id === booking.rideId);
-  };
-
-  const handleCancelBooking = (bookingId) => {
-    const booking = bookings.find(
-      (item) => item.id === bookingId
-    );
-
-    if (!booking) {
-      return;
-    }
-
-    const ride = rides.find(
-      (item) => item.id === booking.rideId
-    );
-
-    const confirmed = window.confirm(
-      "Are you sure you want to cancel this booking?"
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
-    const updatedBookings = bookings.filter(
-      (item) => item.id !== bookingId
-    );
-
-    let updatedRides = rides;
-
-    if (ride) {
-      updatedRides = rides.map((item) =>
-        item.id === ride.id
+    setBookings((currentBookings) =>
+      currentBookings.map((booking) =>
+        booking.id === bookingId
           ? {
-              ...item,
-              seatsAvailable: item.seatsAvailable + 1,
+              ...booking,
+              status: "cancelled",
             }
-          : item
-      );
-    }
-
-    window.localStorage.setItem(
-      BOOKINGS_STORAGE_KEY,
-      JSON.stringify(updatedBookings)
+          : booking
+      )
     );
 
-    window.localStorage.setItem(
-      RIDES_STORAGE_KEY,
-      JSON.stringify(updatedRides)
-    );
-
-    setBookings(updatedBookings);
-    setRides(updatedRides);
+    setCancellingId(null);
   };
 
-  if (!isLoaded) {
-    return (
-      <div className="min-h-screen bg-slate-50">
-        <Navbar />
+  const activeBookings = bookings.filter(
+    (booking) => booking.status === "confirmed"
+  );
 
-        <main className="mx-auto max-w-5xl px-4 py-10">
-          <div className="rounded-2xl border border-slate-200 bg-white py-12 text-center text-sm text-slate-500">
-            Loading your bookings...
-          </div>
-        </main>
-      </div>
+  const previousBookings = bookings.filter(
+    (booking) => booking.status !== "confirmed"
+  );
+
+  if (loading) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
+        <div className="text-sm font-medium text-slate-500">
+          Loading your bookings...
+        </div>
+      </main>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <Navbar />
+    <main className="min-h-screen bg-slate-50">
+      <div className="mx-auto max-w-5xl px-4 py-8">
+        <div className="mb-8">
+          <Link
+            href="/"
+            className="text-sm font-bold text-indigo-600 hover:text-indigo-800"
+          >
+            ← Back to rides
+          </Link>
 
-      <section className="bg-indigo-900 px-4 py-10 text-white">
-        <div className="mx-auto max-w-5xl">
-          <p className="text-xs font-bold uppercase tracking-[0.2em] text-amber-400">
-            EchoFace
-          </p>
+          <div className="mt-5">
+            <h1 className="text-2xl font-black text-slate-900">
+              My Bookings
+            </h1>
 
-          <h1 className="mt-2 text-3xl font-black">
-            My Bookings
-          </h1>
-
-          <p className="mt-2 max-w-xl text-sm text-indigo-200">
-            View your upcoming campus rides and manage your
-            reserved seats.
-          </p>
-        </div>
-      </section>
-
-      <main className="mx-auto max-w-5xl px-4 py-8">
-        {bookings.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-5 py-14 text-center">
-            <div className="text-4xl">🎫</div>
-
-            <h2 className="mt-4 text-xl font-black text-slate-800">
-              No bookings yet
-            </h2>
-
-            <p className="mx-auto mt-2 max-w-md text-sm text-slate-500">
-              When you book a ride, your reservation will appear
-              here.
+            <p className="mt-1 text-sm text-slate-500">
+              Manage the campus rides you've booked.
             </p>
-
-            <a
-              href="/"
-              className="mt-5 inline-block rounded-xl bg-indigo-600 px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-indigo-700"
-            >
-              Find a Ride
-            </a>
           </div>
-        ) : (
-          <div className="space-y-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-black text-slate-800">
-                  Your Reservations
-                </h2>
+        </div>
 
-                <p className="text-xs text-slate-500">
-                  {bookings.length}{" "}
-                  {bookings.length === 1
-                    ? "active booking"
-                    : "active bookings"}
-                </p>
-              </div>
-            </div>
-
-            {bookings.map((booking) => {
-              const ride = getRideForBooking(booking);
-
-              if (!ride) {
-                return (
-                  <article
-                    key={booking.id}
-                    className="rounded-2xl border border-red-200 bg-red-50 p-5"
-                  >
-                    <h3 className="font-bold text-red-800">
-                      Ride unavailable
-                    </h3>
-
-                    <p className="mt-1 text-sm text-red-600">
-                      This ride is no longer available.
-                    </p>
-
-                    <button
-                      type="button"
-                      onClick={() =>
-                        handleCancelBooking(booking.id)
-                      }
-                      className="mt-4 rounded-lg bg-red-600 px-4 py-2 text-xs font-bold text-white hover:bg-red-700"
-                    >
-                      Remove Booking
-                    </button>
-                  </article>
-                );
-              }
-
-              return (
-                <article
-                  key={booking.id}
-                  className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
-                >
-                  <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
-                    <div className="flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-bold text-emerald-700">
-                          ✓ BOOKED
-                        </span>
-
-                        <span className="text-xs text-slate-500">
-                          Booking #{booking.id.slice(-6)}
-                        </span>
-                      </div>
-
-                      <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
-                        <span className="font-bold text-slate-900">
-                          {ride.pickupLocation}
-                        </span>
-
-                        <span className="text-xl text-indigo-500">
-                          →
-                        </span>
-
-                        <span className="font-bold text-indigo-700">
-                          {ride.gate}
-                        </span>
-                      </div>
-
-                      <div className="mt-4 grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
-                        <div>
-                          <p className="text-slate-400">
-                            Driver
-                          </p>
-                          <p className="mt-1 font-bold text-slate-700">
-                            {ride.driverName}
-                          </p>
-                        </div>
-
-                        <div>
-                          <p className="text-slate-400">
-                            Departure
-                          </p>
-                          <p className="mt-1 font-bold text-slate-700">
-                            {ride.departureTime}
-                          </p>
-                        </div>
-
-                        <div>
-                          <p className="text-slate-400">
-                            Vehicle
-                          </p>
-                          <p className="mt-1 font-bold text-slate-700">
-                            {ride.vehicleType}
-                          </p>
-                        </div>
-
-                        <div>
-                          <p className="text-slate-400">
-                            Fare
-                          </p>
-                          <p className="mt-1 font-black text-slate-900">
-                            ₹{ride.costPerSeat}
-                          </p>
-                        </div>
-                      </div>
-
-                      <p className="mt-4 text-xs text-slate-500">
-                        Passenger:{" "}
-                        <span className="font-semibold text-slate-700">
-                          {booking.passengerName}
-                        </span>
-                      </p>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() =>
-                        handleCancelBooking(booking.id)
-                      }
-                      className="rounded-xl border border-red-200 px-5 py-3 text-sm font-bold text-red-600 transition-colors hover:bg-red-50"
-                    >
-                      Cancel Booking
-                    </button>
-                  </div>
-                </article>
-              );
-            })}
+        {error && (
+          <div
+            role="alert"
+            className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+          >
+            {error}
           </div>
         )}
-      </main>
-    </div>
+
+        <section>
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-lg font-black text-slate-800">
+              Active Bookings
+            </h2>
+
+            <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-800">
+              {activeBookings.length}
+            </span>
+          </div>
+
+          {activeBookings.length === 0 ? (
+            <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center">
+              <p className="text-sm font-medium text-slate-600">
+                You don't have any active bookings.
+              </p>
+
+              <Link
+                href="/"
+                className="mt-4 inline-block rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-indigo-700"
+              >
+                Find a Ride
+              </Link>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {activeBookings.map((booking) => {
+                const ride = booking.ride;
+
+                if (!ride) {
+                  return null;
+                }
+
+                return (
+                  <div
+                    key={booking.id}
+                    className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+                  >
+                    <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="font-black text-slate-900">
+                            {ride.driver_name}
+                          </h3>
+
+                          <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-bold text-emerald-700">
+                            CONFIRMED
+                          </span>
+                        </div>
+
+                        <p className="mt-1 text-xs text-slate-500">
+                          {ride.vehicle_type}
+                          {ride.vehicle_name
+                            ? ` • ${ride.vehicle_name}`
+                            : ""}
+                        </p>
+                      </div>
+
+                      <div className="text-left sm:text-right">
+                        <span className="text-lg font-black text-slate-900">
+                          ₹{ride.cost_per_seat}
+                        </span>
+
+                        <p className="text-xs text-slate-500">
+                          per seat
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="my-5 grid grid-cols-1 gap-3 rounded-xl bg-slate-50 p-4 text-sm sm:grid-cols-2">
+                      <div>
+                        <p className="text-xs text-slate-500">
+                          Pickup
+                        </p>
+                        <p className="mt-1 font-bold text-slate-800">
+                          {ride.pickup_location}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-xs text-slate-500">
+                          Drop-off
+                        </p>
+                        <p className="mt-1 font-bold text-indigo-700">
+                          {ride.gate}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-xs text-slate-500">
+                          Departure
+                        </p>
+                        <p className="mt-1 font-bold text-slate-800">
+                          {ride.departure_time}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-xs text-slate-500">
+                          Preference
+                        </p>
+                        <p className="mt-1 font-bold text-slate-800">
+                          {ride.gender_preference}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end border-t border-slate-100 pt-4">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleCancel(booking.id)
+                        }
+                        disabled={
+                          cancellingId === booking.id
+                        }
+                        className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-xs font-bold text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {cancellingId === booking.id
+                          ? "Cancelling..."
+                          : "Cancel Booking"}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
+        {previousBookings.length > 0 && (
+          <section className="mt-10">
+            <h2 className="mb-4 text-lg font-black text-slate-800">
+              Booking History
+            </h2>
+
+            <div className="space-y-3">
+              {previousBookings.map((booking) => {
+                const ride = booking.ride;
+
+                return (
+                  <div
+                    key={booking.id}
+                    className="rounded-xl border border-slate-200 bg-white p-4"
+                  >
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <p className="font-bold text-slate-800">
+                          {ride?.driver_name ||
+                            "Ride unavailable"}
+                        </p>
+
+                        {ride && (
+                          <p className="mt-1 text-xs text-slate-500">
+                            {ride.pickup_location} →{" "}
+                            {ride.gate}
+                          </p>
+                        )}
+                      </div>
+
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${
+                          booking.status ===
+                          "cancelled"
+                            ? "bg-red-100 text-red-700"
+                            : "bg-slate-100 text-slate-600"
+                        }`}
+                      >
+                        {booking.status.toUpperCase()}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
+      </div>
+    </main>
   );
 }
