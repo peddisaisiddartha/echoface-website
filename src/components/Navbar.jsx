@@ -1,19 +1,39 @@
-import React from 'react';
+import React from "react";
+import Link from "next/link";
 
 export default function Navbar({ onOpenPostModal }) {
   return (
-    <header className="bg-indigo-700 text-white shadow-md sticky top-0 z-40">
-      <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
-        <div className="flex items-center space-x-2">
-          <span className="text-2xl font-black tracking-wider">CAMPUS<span className="text-amber-400">POOL</span></span>
-        </div>
-        <div className="flex items-center space-x-3">
-          <button className="bg-indigo-600 hover:bg-indigo-800 px-3 py-1.5 rounded-lg text-xs md:text-sm font-medium border border-indigo-400">
+    <header className="sticky top-0 z-40 bg-indigo-700 text-white shadow-md">
+      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
+        <Link
+          href="/"
+          className="flex items-center space-x-2"
+        >
+          <span className="text-2xl font-black tracking-wider">
+            ECHO
+            <span className="text-amber-400">FACE</span>
+          </span>
+        </Link>
+
+        <div className="flex items-center space-x-2 sm:space-x-3">
+          <Link
+            href="/my-bookings"
+            className="rounded-lg px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-indigo-600 md:text-sm"
+          >
+            My Bookings
+          </Link>
+
+          <button
+            type="button"
+            className="hidden rounded-lg border border-indigo-400 bg-indigo-600 px-3 py-1.5 text-xs font-medium hover:bg-indigo-800 sm:block md:text-sm"
+          >
             Verify Student ID
           </button>
-          <button 
+
+          <button
+            type="button"
             onClick={onOpenPostModal}
-            className="bg-amber-400 hover:bg-amber-500 text-slate-950 px-4 py-1.5 rounded-lg text-xs md:text-sm font-bold shadow-sm transition-transform active:scale-95"
+            className="rounded-lg bg-amber-400 px-4 py-1.5 text-xs font-bold text-slate-950 shadow-sm transition-transform hover:bg-amber-500 active:scale-95 md:text-sm"
           >
             + Post a Ride
           </button>

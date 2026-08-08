@@ -40,5 +40,5 @@ export const INITIAL_RIDES = [
     costPerSeat: 30,
     genderPreference: "Any",
     isVerifiedStudent: true,
-  }
+  },
 ];
