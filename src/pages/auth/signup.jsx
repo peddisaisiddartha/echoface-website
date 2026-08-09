@@ -16,6 +16,7 @@ export default function Signup() {
   const [fullName, setFullName] = useState("");
   const [college, setCollege] = useState(COLLEGES[0]);
   const [studentId, setStudentId] = useState("");
+  const [mobileNumber, setMobileNumber] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] =
@@ -59,15 +60,24 @@ export default function Signup() {
 
     const normalizedName = fullName.trim();
     const normalizedStudentId = studentId.trim();
+    const normalizedMobileNumber = mobileNumber.trim();
     const normalizedEmail = email.trim().toLowerCase();
 
     if (
       !normalizedName ||
       !normalizedStudentId ||
+      !normalizedMobileNumber ||
       !normalizedEmail ||
       !password
     ) {
       setError("Please complete all required fields.");
+      return;
+    }
+
+    if (!/^[0-9]{10}$/.test(normalizedMobileNumber)) {
+      setError(
+        "Please enter a valid 10-digit mobile number."
+      );
       return;
     }
 
@@ -120,6 +130,7 @@ export default function Signup() {
         full_name: normalizedName,
         college,
         student_id: normalizedStudentId,
+        mobile_number: normalizedMobileNumber,
       })
       .eq("id", userId);
 
@@ -320,6 +331,34 @@ export default function Signup() {
                 }
                 placeholder="e.g. 22R21A0001"
                 className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm uppercase outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+              />
+            </div>
+
+            <div>
+              <label
+                htmlFor="mobile-number"
+                className="mb-1.5 block text-sm font-bold text-slate-700"
+              >
+                Mobile Number
+              </label>
+
+              <input
+                id="mobile-number"
+                type="tel"
+                autoComplete="tel"
+                inputMode="numeric"
+                required
+                maxLength={10}
+                value={mobileNumber}
+                onChange={(event) => {
+                  const value = event.target.value
+                    .replace(/\D/g, "")
+                    .slice(0, 10);
+
+                  setMobileNumber(value);
+                }}
+                placeholder="e.g. 9876543210"
+                className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
               />
             </div>
 
