@@ -10,6 +10,10 @@ export default function MyRides() {
   const [loading, setLoading] = useState(true);
   const [cancellingId, setCancellingId] = useState(null);
   const [error, setError] = useState("");
+  const [bookingMessages, setBookingMessages] = useState({});
+  const [confirmedBookings, setConfirmedBookings] = useState([]);
+  const [messageInputs, setMessageInputs] = useState({});
+  const [sendingMessageId, setSendingMessageId] = useState(null);
 
   useEffect(() => {
     let mounted = true;
@@ -33,13 +37,90 @@ export default function MyRides() {
       }
 
       const { data, error: ridesError } =
-        await supabase
-          .from("rides")
-          .select("*")
-          .eq("driver_id", user.id)
-          .order("created_at", {
-            ascending: false,
-          });
+  await supabase
+    .from("rides")
+    .select("*")
+    .eq("driver_id", user.id)
+    .order("created_at", {
+      ascending: false,
+    });
+
+if (ridesError) {
+  setError(
+    ridesError.message ||
+      "Unable to load your rides."
+  );
+  setLoading(false);
+  return;
+}
+
+const loadedRides = data || [];
+
+const rideIds = loadedRides.map((ride) => ride.id);
+
+if (rideIds.length > 0) {
+  const { data: confirmedBookings, error: bookingsError } =
+    await supabase
+      .from("bookings")
+      .select("id, ride_id, passenger_id, status")
+      .in("ride_id", rideIds)
+      .eq("status", "confirmed");
+
+  if (bookingsError) {
+    setError(
+      bookingsError.message ||
+        "Unable to load confirmed bookings."
+    );
+    setLoading(false);
+    return;
+  }
+
+  setConfirmedBookings(confirmedBookings || []);
+
+  const bookingIds = (confirmedBookings || []).map(
+    (booking) => booking.id
+  );
+
+  if (bookingIds.length > 0) {
+    const {
+      data: messages,
+      error: messagesError,
+    } = await supabase
+      .from("booking_messages")
+      .select(
+        "id, booking_id, sender_id, message, created_at"
+      )
+      .in("booking_id", bookingIds)
+      .order("created_at", {
+        ascending: true,
+      });
+
+    if (messagesError) {
+      setError(
+        messagesError.message ||
+          "Unable to load booking messages."
+      );
+      setLoading(false);
+      return;
+    }
+
+    const groupedMessages = {};
+
+    (messages || []).forEach((message) => {
+      if (!groupedMessages[message.booking_id]) {
+        groupedMessages[message.booking_id] = [];
+      }
+
+      groupedMessages[message.booking_id].push(message);
+    });
+
+    setBookingMessages(groupedMessages);
+  }
+}
+
+      setRides(loadedRides);
+      setLoading(false);
+      return;
 
       if (!mounted) {
         return;
@@ -95,6 +176,72 @@ export default function MyRides() {
     );
 
     setCancellingId(null);
+  };
+
+
+    const sendMessage = async (bookingId) => {
+    const message = (
+      messageInputs[bookingId] || ""
+    ).trim();
+
+    if (!message) {
+      return;
+    }
+
+    setSendingMessageId(bookingId);
+    setError("");
+
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      setError(
+        "You must be signed in to send a message."
+      );
+      setSendingMessageId(null);
+      return;
+    }
+
+    const { error: messageError } =
+      await supabase
+        .from("booking_messages")
+        .insert({
+          booking_id: bookingId,
+          sender_id: user.id,
+          message,
+        });
+
+    if (messageError) {
+      setError(
+        messageError.message ||
+          "Unable to send your message."
+      );
+      setSendingMessageId(null);
+      return;
+    }
+
+    setBookingMessages((current) => ({
+      ...current,
+      [bookingId]: [
+        ...(current[bookingId] || []),
+        {
+          id: `local-${Date.now()}`,
+          booking_id: bookingId,
+          sender_id: user.id,
+          message,
+          created_at: new Date().toISOString(),
+        },
+      ],
+    }));
+
+    setMessageInputs((current) => ({
+      ...current,
+      [bookingId]: "",
+    }));
+
+    setSendingMessageId(null);
   };
 
   const activeRides = rides.filter(
@@ -282,6 +429,66 @@ export default function MyRides() {
                         ₹{ride.cost_per_seat} / seat
                       </p>
                     </div>
+                  </div>
+
+
+                  <div className="mb-4 space-y-3">
+                    {confirmedBookings
+                      .filter((booking) => booking.ride_id === ride.id)
+                      .map((booking) => (
+                        <div
+                          key={booking.id}
+                          className="rounded-xl border border-indigo-100 bg-indigo-50 p-4"
+                        >
+                          <p className="text-sm font-black text-indigo-900">
+                            Passenger Contact
+                          </p>
+
+                          <p className="mt-1 text-xs text-indigo-700">
+                            Confirmed passenger
+                          </p>
+
+                          {(bookingMessages[booking.id] || []).length > 0 && (
+                            <div className="mt-3 space-y-2">
+                              {bookingMessages[booking.id].map((message) => (
+                                <div
+                                  key={message.id}
+                                  className="rounded-lg bg-white px-3 py-2 text-sm text-slate-700"
+                                >
+                                  {message.message}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          <textarea
+                            value={messageInputs[booking.id] || ""}
+                            onChange={(event) =>
+                              setMessageInputs((current) => ({
+                                ...current,
+                                [booking.id]: event.target.value,
+                              }))
+                            }
+                            placeholder="Reply to the passenger..."
+                            rows={2}
+                            maxLength={1000}
+                            className="mt-3 w-full rounded-xl border border-indigo-200 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                          />
+
+                          <button
+                              type="button"
+                              onClick={() => sendMessage(booking.id)}
+                                disabled={
+                                sendingMessageId === booking.id ||
+                                !(messageInputs[booking.id] || "").trim()
+                              }
+                              className="mt-2 w-full rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                              {sendingMessageId === booking.id
+                                ? "Sending..."
+                                : "Reply"}
+                          </button>
+                        </div>
+                      ))}
                   </div>
 
                   <div className="flex justify-end border-t border-slate-100 pt-4">
